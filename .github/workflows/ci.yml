@@ -1,0 +1,72 @@
+name: CI
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.14"]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: uv run --python ${{ matrix.python-version }} pytest -q
+
+  floor:
+    # Oldest supported release (hacs.json). HA 2026.3.1 needs Python 3.14.2;
+    # pytest-homeassistant-custom-component 0.13.317 is the build for it.
+    # PyTurboJPEG, av and numpy are camera/stream runtime requirements that HA
+    # normally installs itself.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: uv venv --python 3.14.2 .floor
+      - run: >
+          uv pip install --python .floor/bin/python
+          homeassistant==2026.3.1
+          pytest-homeassistant-custom-component==0.13.317
+          PyTurboJPEG av numpy ha-ffmpeg
+      - run: .floor/bin/python -m pytest -q
+      - name: Import every module
+        run: |
+          .floor/bin/python - <<'PY'
+          import importlib
+          import pkgutil
+
+          import custom_components.comelit_vip as package
+
+          for module in pkgutil.walk_packages(package.__path__, f"{package.__name__}."):
+              importlib.import_module(module.name)
+          PY
+
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: home-assistant/actions/hassfest@a7c616ce81ccda50150bf1595786c71b1883fabb # master
+
+  hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: hacs/action@1ebf01c408f29afcb6406bd431bc98fd8cbb15aa # main
+        with:
+          category: integration
+          comment: false

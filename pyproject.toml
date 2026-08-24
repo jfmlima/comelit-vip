@@ -1,0 +1,42 @@
+[project]
+name = "comelit-vip"
+version = "0.1.0"
+description = "Home Assistant integration for Comelit ViP video door entry (door, ring, live view)"
+requires-python = ">=3.14.2"
+
+[dependency-groups]
+dev = [
+    # pytest and pytest-asyncio are pinned by pytest-homeassistant-custom-component.
+    "homeassistant>=2026.8.2",
+    "pytest-homeassistant-custom-component>=0.13.325",
+    "ruff>=0.14",
+    # Runtime requirements of the camera, stream and ffmpeg components, which
+    # HA installs itself outside tests.
+    "PyTurboJPEG",
+    "av",
+    "numpy",
+    "ha-ffmpeg",
+]
+
+[tool.ruff]
+line-length = 127
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF", "ASYNC", "D"]
+ignore = [
+    "D105",
+    "D107",
+    "D203",
+    "D213",
+    "D407",
+    "E501",
+    "ASYNC109",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,89 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Comelit ViP intercom",
+        "description": "Enter the address of the Wi-Fi monitor. Leave the token empty to read it from the monitor's installer web interface.",
+        "data": {
+          "host": "Host",
+          "password": "Installer password",
+          "token": "User token (optional)",
+          "web_port": "Installer web port",
+          "port": "ViP port"
+        }
+      },
+      "reauth_confirm": {
+        "title": "The intercom rejected the token",
+        "description": "Home Assistant is no longer accepted by the intercom at {host}. Give it a new user token, or leave the token empty and enter the installer password to pick a user again. The address cannot be changed here.",
+        "data": {
+          "password": "Installer password",
+          "token": "User token (optional)"
+        }
+      },
+      "pick_user": {
+        "title": "Which user should Home Assistant be?",
+        "description": "Each entry is one paired device. Pick a slot that no phone uses; two clients on the same user interfere with each other's calls. Add a device from the intercom's Users page if none is spare.",
+        "data": {
+          "user_slot": "App user"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot reach the intercom.",
+      "invalid_password": "The installer password was rejected.",
+      "invalid_token": "The intercom rejected this user token.",
+      "no_token": "No app user was found on the intercom. Pair the Comelit app first, or enter a token."
+    },
+    "abort": {
+      "already_configured": "This intercom is already configured.",
+      "reauth_successful": "Re-authentication was successful.",
+      "reauth_failed": "The entry being re-authenticated has gone."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Streaming and recording",
+        "description": "The monitor sends video only during a call and allows one at a time, so a stream makes the wall monitor unusable while it runs.",
+        "data": {
+          "rtsp_port": "RTSP port",
+          "expose_stream": "Let other devices reach the stream",
+          "rtsp_host": "Address other devices should use (for example for Frigate)",
+          "record_on_ring": "Record a clip when someone rings",
+          "record_seconds": "Clip length in seconds",
+          "record_path": "Folder for clips",
+          "snapshot_on_ring": "Take a picture when somebody rings"
+        },
+        "data_description": {
+          "expose_stream": "Off, only Home Assistant can open the stream. On, any device on the network can, and each open stream holds a call on the panel, during which the wall monitor cannot be used."
+        }
+      }
+    }
+  },
+  "entity": {
+    "event": {
+      "doorbell": {
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "ring": "Ring",
+              "call_ended": "Call ended",
+              "internal_call": "Internal call"
+            }
+          }
+        },
+        "name": "Doorbell"
+      }
+    },
+    "camera": {
+      "entrance": {
+        "name": "Entrance"
+      }
+    },
+    "button": {
+      "snapshot": {
+        "name": "Update snapshot"
+      }
+    }
+  }
+}

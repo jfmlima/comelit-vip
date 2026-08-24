@@ -1,0 +1,19 @@
+{
+  "entity": {
+    "camera": {
+      "entrance": {
+        "default": "mdi:doorbell-video"
+      }
+    },
+    "event": {
+      "doorbell": {
+        "default": "mdi:bell-outline"
+      }
+    },
+    "button": {
+      "snapshot": {
+        "default": "mdi:camera"
+      }
+    }
+  }
+}

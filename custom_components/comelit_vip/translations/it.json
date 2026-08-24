@@ -1,0 +1,89 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Citofono Comelit ViP",
+        "description": "Inserisci l'indirizzo del monitor Wi-Fi. Lascia vuoto il token per leggerlo dall'interfaccia web installatore del monitor.",
+        "data": {
+          "host": "Host",
+          "password": "Password installatore",
+          "token": "Token utente (facoltativo)",
+          "web_port": "Porta web installatore",
+          "port": "Porta ViP"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Il citofono ha rifiutato il token",
+        "description": "Il citofono all'indirizzo {host} non accetta più Home Assistant. Inserisci un nuovo token utente, oppure lascia vuoto il token e inserisci la password installatore per scegliere di nuovo un utente. L'indirizzo non si può cambiare qui.",
+        "data": {
+          "password": "Password installatore",
+          "token": "Token utente (facoltativo)"
+        }
+      },
+      "pick_user": {
+        "title": "Quale utente deve essere Home Assistant?",
+        "description": "Ogni voce è un dispositivo abbinato. Scegli uno slot che nessun telefono usa: due client sullo stesso utente disturbano le chiamate l'uno dell'altro. Se non ce n'è uno libero, aggiungi un dispositivo dalla pagina Utenti del citofono.",
+        "data": {
+          "user_slot": "Utente app"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossibile raggiungere il citofono.",
+      "invalid_password": "La password installatore è stata rifiutata.",
+      "invalid_token": "Il citofono ha rifiutato questo token utente.",
+      "no_token": "Nessun utente app trovato sul citofono. Abbina prima l'app Comelit, oppure inserisci un token."
+    },
+    "abort": {
+      "already_configured": "Questo citofono è già configurato.",
+      "reauth_successful": "Nuova autenticazione riuscita.",
+      "reauth_failed": "La voce da riautenticare non esiste più."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Streaming e registrazione",
+        "description": "Il monitor invia video solo durante una chiamata e ne consente una alla volta: uno stream aperto rende inutilizzabile il monitor a parete.",
+        "data": {
+          "rtsp_port": "Porta RTSP",
+          "expose_stream": "Consenti ad altri dispositivi di raggiungere lo stream",
+          "rtsp_host": "Indirizzo che gli altri dispositivi devono usare (per esempio per Frigate)",
+          "record_on_ring": "Registra un video quando qualcuno suona",
+          "record_seconds": "Durata del video in secondi",
+          "record_path": "Cartella dei video",
+          "snapshot_on_ring": "Scatta una foto quando qualcuno suona"
+        },
+        "data_description": {
+          "expose_stream": "Spento: solo Home Assistant può aprire lo stream. Acceso: qualsiasi dispositivo in rete può farlo, e ogni stream aperto tiene una chiamata sul citofono, durante la quale il monitor a parete non si può usare."
+        }
+      }
+    }
+  },
+  "entity": {
+    "event": {
+      "doorbell": {
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "ring": "Squillo",
+              "call_ended": "Chiamata terminata",
+              "internal_call": "Chiamata interna"
+            }
+          }
+        },
+        "name": "Campanello"
+      }
+    },
+    "camera": {
+      "entrance": {
+        "name": "Ingresso"
+      }
+    },
+    "button": {
+      "snapshot": {
+        "name": "Aggiorna istantanea"
+      }
+    }
+  }
+}
