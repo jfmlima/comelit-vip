@@ -101,9 +101,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ComelitVipEntry) -> bo
 
         await er.async_migrate_entries(hass, entry.entry_id, _rekey)
         devices = dr.async_get(hass)
-        device = devices.async_get_device(identifiers={(DOMAIN, entry.entry_id)})
-        if device is not None:
-            devices.async_update_device(device.id, new_identifiers={(DOMAIN, panel)})
+        for device in dr.async_entries_for_config_entry(devices, entry.entry_id):
+            if (DOMAIN, entry.entry_id) in device.identifiers:
+                devices.async_update_device(device.id, new_identifiers={(DOMAIN, panel)})
     hass.config_entries.async_update_entry(entry, version=2)
     return True
 

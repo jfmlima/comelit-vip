@@ -237,9 +237,9 @@ async def test_migrate_v1_device(hass):
 
     assert await async_migrate_entry(hass, entry)
 
-    assert devices.async_get_device(identifiers={(DOMAIN, "aa:bb:cc:dd:ee:ff")}) is not None
-    assert devices.async_get_device(identifiers={(DOMAIN, entry.entry_id)}) is None
-    assert device.id == devices.async_get_device(identifiers={(DOMAIN, "aa:bb:cc:dd:ee:ff")}).id
+    migrated = devices.async_get(device.id)
+    assert migrated is not None
+    assert migrated.identifiers == {(DOMAIN, "aa:bb:cc:dd:ee:ff")}
 
 
 async def test_migrate_v1_skips_host_unique_id(hass):
