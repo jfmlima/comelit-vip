@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import socket
 
 import pytest
 
@@ -359,12 +360,11 @@ async def test_two_viewers_share_one_call(scripted, talk):
 
 async def test_stop_with_unhandled_connection(relay, socket_enabled):
     """A just-accepted connection has no handler task yet, so it is in none of the relay's sets."""
-    _reader, writer = await asyncio.open_connection(DEFAULT_HOST, relay.port)
-    assert relay._sessions == set()
+    # A blocking connect: no loop turn happens before stop() is called.
+    with socket.create_connection((DEFAULT_HOST, relay.port)):
+        assert relay._sessions == set()
 
-    await asyncio.wait_for(relay.stop(), 5)
-
-    writer.close()
+        await asyncio.wait_for(relay.stop(), 5)
 
 
 async def test_stop_closes_clients(relay, talk):

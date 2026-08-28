@@ -40,3 +40,5 @@ ignore = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# `uv run pytest` does not put the working directory on sys.path.
+pythonpath = ["."]
