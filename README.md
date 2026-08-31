@@ -128,8 +128,12 @@ seconds between them.
 
 A call held by this integration does not stop the doorbell: the wall monitor
 still rings, can answer, and can open the door. The panel refuses a new call
-from a second client while one is up, and refuses any outbound call while a
-ring is in progress.
+from a second client while one is up. While a ring is in progress it refuses
+both a call and a door release from this integration (cause 8, "busy"); the
+wall monitor and the app are not affected, because they answer the ring. An
+unanswered ring keeps the panel busy for about a minute. The panel releases
+an answered call when it ends; an unanswered ring it never releases, so the
+doorbell reports "call ended" with no cause two minutes after such a ring.
 
 Two options start a call on their own: taking a still on a ring and recording
 a clip on a ring. Both are off by default. Because the panel refuses an

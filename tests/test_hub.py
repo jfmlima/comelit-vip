@@ -10,7 +10,7 @@ from fake_panel import ENTRANCE, FakePanel, until
 from custom_components.comelit_vip.const import CONNECTION_MAX_AGE, DEFAULT_RTSP_PORT
 from custom_components.comelit_vip.hub import ComelitVipHub
 from custom_components.comelit_vip.viper.rtsp import DEFAULT_HOST, EXPOSED_HOST
-from custom_components.comelit_vip.viper.session import ViperAuthError, ViperError
+from custom_components.comelit_vip.viper.session import ViperAuthError, ViperError, ViperRefusedError
 
 
 @pytest.fixture
@@ -145,8 +145,10 @@ async def test_auth_failures_reset(hass, panel, monkeypatch):
     await hub.session.close()
 
 
-async def test_recycle_notifies_unavailable(hass, panel, monkeypatch):
+async def test_recycle_is_quiet(hass, panel, monkeypatch):
+    """A planned replacement is not two logbook rows every fifty minutes."""
     monkeypatch.setattr("custom_components.comelit_vip.hub.async_discover", _no_discovery)
+    monkeypatch.setattr("custom_components.comelit_vip.hub.RECONNECT_BACKOFF", (0,))
     hub = ComelitVipHub(hass, "entry", host=panel.host, token="t" * 32, port=panel.port, rtsp_port=0)
     await hub._connect()
     seen = []
@@ -155,7 +157,32 @@ async def test_recycle_notifies_unavailable(hass, panel, monkeypatch):
 
     await hub._recycle_if_stale(asyncio.get_running_loop().time())
 
+    assert seen == []
+    assert hub.available, "still up as far as the entities know"
+
+    assert await hub._raise_link() is True
+
+    assert seen == [True]
+    assert hub.session.registered
+    hub._stopping = True
+    await hub.session.close()
+
+
+async def test_failed_replacement_reported(hass, panel, monkeypatch):
+    monkeypatch.setattr("custom_components.comelit_vip.hub.async_discover", _no_discovery)
+    monkeypatch.setattr("custom_components.comelit_vip.hub.RECONNECT_BACKOFF", (0,))
+    hub = ComelitVipHub(hass, "entry", host=panel.host, token="t" * 32, port=panel.port, rtsp_port=0)
+    await hub._connect()
+    seen = []
+    hub.add_listener(lambda kind, data: seen.append(data.get("available")))
+    hub._connected_at -= CONNECTION_MAX_AGE + 1
+    await hub._recycle_if_stale(asyncio.get_running_loop().time())
+    await panel.stop()
+
+    assert await hub._raise_link() is True
+
     assert seen == [False]
+    assert not hub.available
     hub._stopping = True
     await hub.session.close()
 
@@ -206,6 +233,9 @@ class _FakeRelay:
 
     async def abandon_call(self) -> None:
         self.abandoned += 1
+
+    async def prepare(self, target: str | None = None) -> None:
+        return
 
     async def stop(self) -> None:
         return
@@ -271,14 +301,41 @@ async def test_capture_skipped_when_busy(hub, monkeypatch):
 
     monkeypatch.setattr(hub, "_run_ffmpeg", _ffmpeg)
 
-    assert await hub.async_capture_snapshot(ENTRANCE) is False
+    with pytest.raises(ViperError, match="a call towards SB900009 is up"):
+        await hub.async_capture_snapshot(ENTRANCE)
     assert await hub.async_record_clip(1, target=ENTRANCE) is None
     assert ran == []
 
     hub.relay.serving = ENTRANCE
 
-    assert await hub.async_capture_snapshot(ENTRANCE) is True
+    await hub.async_capture_snapshot(ENTRANCE)
     assert hub.snapshots[ENTRANCE] == b"jpeg"
+
+
+async def test_capture_refused_in_words(hub, monkeypatch):
+    """During a ring the panel answers the call with cause 8; the user reads why, not an RTSP 503."""
+    from fake_panel import CONFIGURATION
+
+    from custom_components.comelit_vip.viper.models import PanelConfig
+
+    hub.config = PanelConfig.from_response(CONFIGURATION)
+    hub.relay = _FakeRelay()
+    ran = []
+
+    async def _refuse(target=None):
+        raise ViperRefusedError(8)
+
+    async def _ffmpeg(args, *, timeout, capture):
+        ran.append(args)
+        return 0, b"jpeg", b""
+
+    hub.relay.prepare = _refuse
+    monkeypatch.setattr(hub, "_run_ffmpeg", _ffmpeg)
+
+    with pytest.raises(ViperError, match="busy with a call"):
+        await hub.async_capture_snapshot(ENTRANCE)
+    assert await hub.async_record_clip(1, target=ENTRANCE) is None
+    assert ran == []
 
 
 def test_default_record_path(hass):

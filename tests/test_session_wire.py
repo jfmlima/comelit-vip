@@ -138,7 +138,15 @@ async def test_drop_reported(session, panel):
 async def test_open_door_refused(session, panel):
     panel.open_cause = 5
 
-    with pytest.raises(ViperError):
+    with pytest.raises(ViperError, match="cause 5"):
+        await session.open_door(ENTRANCE, 1)
+
+
+async def test_open_door_during_ring_is_busy(session, panel):
+    """A 6741W answers a door release with cause 8 while it rings."""
+    panel.open_cause = 8
+
+    with pytest.raises(ViperError, match="busy with a call"):
         await session.open_door(ENTRANCE, 1)
 
 

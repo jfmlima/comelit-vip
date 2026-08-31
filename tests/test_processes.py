@@ -31,6 +31,9 @@ class _FakeRelay:
     async def stop(self):
         return
 
+    async def prepare(self, target=None):
+        return
+
     async def abandon_call(self):
         return
 

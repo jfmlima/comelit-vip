@@ -85,6 +85,19 @@ async def test_call_ended_event(hass, entry, panel):
     assert hass.states.get(doorbell).attributes["event_type"] == "call_ended"
 
 
+async def test_unreleased_ring_times_out(hass, entry, panel, monkeypatch):
+    """A 6741W sends no RELEASE when nobody answers; the ring must not stay open for good."""
+    monkeypatch.setattr("custom_components.comelit_vip.viper.session.INBOUND_CALL_TIMEOUT", 0.2)
+    doorbell = _doorbell(hass)
+
+    await panel.ring()
+    await _ring_seen(hass, doorbell, "ring")
+    await _ring_seen(hass, doorbell, "call_ended")
+
+    assert hass.states.get(doorbell).attributes["cause"] is None
+    assert not entry.runtime_data.session.calls_active
+
+
 async def test_ring_after_reconnect(hass, entry, panel):
     doorbell = _doorbell(hass)
     await panel.ring()

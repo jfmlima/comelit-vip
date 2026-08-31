@@ -227,6 +227,10 @@ class RtspRelay:
         if episode.failure is not None:
             raise episode.failure
 
+    async def prepare(self, target: str | None = None) -> None:
+        """Dial ``target`` ahead of a client, so a refusal is reported in words rather than as an RTSP 503."""
+        await self._ensure_call(target)
+
     def _live(self) -> _Episode | None:
         """Return the episode being served, if its owner is still running."""
         episode = self._episode
