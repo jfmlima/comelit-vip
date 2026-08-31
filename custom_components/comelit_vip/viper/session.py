@@ -57,8 +57,10 @@ _LOGGER = logging.getLogger(__name__)
 DEFAULT_PORT = 64100
 REQUEST_TIMEOUT = 10.0
 CTP_TIMEOUT = 10.0
-# Backstop for a ring the panel never releases.
-INBOUND_CALL_TIMEOUT = 600.0
+# An unanswered ring keeps a 6741W busy for about a minute and no RELEASE was
+# seen after it; a call that was answered is released with a cause when it ends.
+INBOUND_CALL_TIMEOUT = 120.0
+CAUSE_BUSY = 8
 _REGISTER_TAIL = b"\x10\x0e\x00"
 FIRST_HANDLE = 0x7474
 
@@ -83,7 +85,8 @@ class ViperRefusedError(ViperError):
     """The panel released a connection instead of answering it."""
 
     def __init__(self, cause: int | None) -> None:
-        super().__init__(f"the panel refused the request (cause {cause})")
+        reason = "the panel is busy with a call" if cause == CAUSE_BUSY else "the panel refused the request"
+        super().__init__(f"{reason} (cause {cause})")
         self.cause = cause
 
 
@@ -518,9 +521,10 @@ class ViperSession:
     async def _watch_inbound_call(self, conn: CtpConnection, event: RingEvent) -> None:
         """Follow an inbound call until the panel releases it, then report its end."""
         cause: int | None = None
+        deadline = asyncio.get_running_loop().time() + INBOUND_CALL_TIMEOUT
         try:
             while True:
-                packet = await conn.wait(timeout=INBOUND_CALL_TIMEOUT)
+                packet = await conn.wait(timeout=deadline - asyncio.get_running_loop().time())
                 if packet.opcode == OP_RELEASE:
                     cause = packet.release_cause
                     break
@@ -711,7 +715,7 @@ class ViperSession:
             self.release_connection(conn)
         cause = release.release_cause
         if cause != 0:
-            raise ViperError(f"panel rejected open-door: cause={cause}")
+            raise ViperRefusedError(cause)
         return 0
 
     def new_call_connection(self, target: str) -> CtpConnection:

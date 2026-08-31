@@ -98,6 +98,7 @@ class ComelitVipHub:
         self._supervisor: asyncio.Task | None = None
         self._changed = asyncio.Event()
         self._immediate = False
+        self._replacing = False
         self._stopping = False
 
     @property
@@ -105,9 +106,10 @@ class ComelitVipHub:
         """Return whether connected and registered.
 
         The panel keeps answering probes on a connection it has stopped
-        delivering calls over, so connected alone is not enough.
+        delivering calls over, so connected alone is not enough. A connection
+        being replaced on purpose counts as up until the replacement fails.
         """
-        return self.session.connected and self.session.registered
+        return (self.session.connected and self.session.registered) or self._replacing
 
     # ------------------------------------------------------------------ lifecycle
     async def async_setup(self) -> None:
@@ -165,6 +167,7 @@ class ComelitVipHub:
         self.local_ip = self.session.local_address
         self._connected_at = asyncio.get_running_loop().time()
         self._auth_failures = 0
+        self._replacing = False
         self._notify("connection", {"available": self.available})
         _LOGGER.info(
             "connected to %s (%s) as %s",
@@ -182,9 +185,15 @@ class ComelitVipHub:
         self._lower_link()
 
     @callback
-    def _lower_link(self, *, immediate: bool = False) -> None:
-        """Take the one transition to a down link and wake the supervisor."""
-        self._notify("connection", {"available": False})
+    def _lower_link(self, *, immediate: bool = False, quiet: bool = False) -> None:
+        """Take the one transition to a down link and wake the supervisor.
+
+        A quiet transition is a planned replacement: the entities hear of it
+        only if the new connection fails.
+        """
+        self._replacing = quiet
+        if not quiet:
+            self._notify("connection", {"available": False})
         # A connection that dies at once usually means another client holds
         # this user; keep the backoff climbing.
         if self._connected_at is not None:
@@ -196,6 +205,13 @@ class ComelitVipHub:
         self._connected_at = None
         self._immediate = immediate
         self._changed.set()
+
+    @callback
+    def _report_down(self) -> None:
+        """Tell the entities about a replacement that did not come up."""
+        if self._replacing:
+            self._replacing = False
+            self._notify("connection", {"available": False})
 
     async def _supervise(self) -> None:
         """Keep the link up. This is the only task that builds a connection."""
@@ -244,6 +260,7 @@ class ComelitVipHub:
         try:
             await self._connect()
         except ViperAuthError as err:
+            self._report_down()
             # The panel's response code for a slot another client holds, as
             # against a bad token, is not known. Setup still reauths at once.
             self._auth_failures += 1
@@ -267,6 +284,7 @@ class ComelitVipHub:
                 entry.async_start_reauth(self.hass)
             return False
         except (ViperError, OSError) as err:
+            self._report_down()
             _LOGGER.debug("reconnect attempt %d failed: %s", self._attempt, err)
             return True
         if not self.available:
@@ -274,6 +292,7 @@ class ComelitVipHub:
             _LOGGER.warning("the connection to %s did not survive being set up", self.host)
             await self.session.close()
             self._connected_at = None
+            self._notify("connection", {"available": False})
         return True
 
     async def _watchdog_pass(self) -> None:
@@ -330,7 +349,7 @@ class ComelitVipHub:
             return
         _LOGGER.info("taking a fresh registration lease from %s", self.host)
         await self.session.close()
-        self._lower_link(immediate=True)
+        self._lower_link(immediate=True, quiet=True)
 
     def _calls_in_progress(self) -> bool:
         """Return whether anything would notice the connection going away."""
@@ -415,9 +434,16 @@ class ComelitVipHub:
         if target is None:
             return
         if self.snapshot_on_ring:
-            self.hass.async_create_task(self.async_capture_snapshot(target), "comelit_vip.snapshot")
+            self.hass.async_create_task(self._snapshot_after_ring(target), "comelit_vip.snapshot")
         if self.record_on_ring:
             self.hass.async_create_task(self.async_record_clip(target=target), "comelit_vip.record")
+
+    async def _snapshot_after_ring(self, target: str) -> None:
+        """Take the picture owed after a ring; nobody is waiting, so log rather than raise."""
+        try:
+            await self.async_capture_snapshot(target)
+        except ViperError as err:
+            _LOGGER.error("could not take a picture of %s after the ring: %s", target, err)
 
     # ------------------------------------------------------------------ actions
     async def async_open(self, address: str, output_index: int) -> None:
@@ -445,25 +471,30 @@ class ComelitVipHub:
             return self.relay.url(DEFAULT_HOST, target)
         return self.relay.url(host or self.rtsp_host or self.local_ip or DEFAULT_HOST, target)
 
-    def _capture_target(self, target: str | None, purpose: str) -> str | None:
-        """Return the entrance to dial, or None if a call to another entrance is up."""
+    async def _dial(self, target: str | None) -> tuple[str, str]:
+        """Start the call for a capture; return the entrance and the relay URL.
+
+        Raises ViperError, in words, for whatever stops the call: no entrance,
+        a call towards another entrance, or the panel refusing.
+        """
         if self.config is None:
-            return None
+            raise ViperError("the configuration has not been read yet")
         target = target or self.config.entrance
         if target is None:
-            return None
+            raise ViperError("the configuration names no entrance panel")
         busy = self.relay.serving if self.relay is not None else None
         if busy is not None and busy != target:
-            _LOGGER.warning("not taking a %s of %s: a call towards %s is up and the panel allows one", purpose, target, busy)
-            return None
-        return target
-
-    async def async_capture_snapshot(self, target: str | None = None) -> bool:
-        """Take a still from an entrance camera and keep it."""
-        target = self._capture_target(target, "picture")
-        url = self.stream_url("127.0.0.1", target) if target is not None else None
+            raise ViperError(f"a call towards {busy} is up and the panel allows one")
+        url = self.stream_url("127.0.0.1", target)
         if url is None:
-            return False
+            raise ViperError("the video relay is not running")
+        if self.relay is not None:
+            await self.relay.prepare(target)
+        return target, url
+
+    async def async_capture_snapshot(self, target: str | None = None) -> None:
+        """Take a still from an entrance camera and keep it."""
+        target, url = await self._dial(target)
         code, stdout, stderr = await self._run_ffmpeg(
             ("-rtsp_transport", "tcp", "-i", url, "-frames:v", "1", "-q:v", "3", "-f", "image2", "-"),
             timeout=SNAPSHOT_TIMEOUT,
@@ -471,17 +502,17 @@ class ComelitVipHub:
         )
         if code != 0 or not stdout:
             _LOGGER.error("could not take a snapshot: %s", stderr.decode(errors="replace").strip())
-            return False
+            raise ViperError("ffmpeg could not read a frame from the relay; see the log")
         self.snapshots[target] = stdout
         self.snapshots_at[target] = datetime.now(UTC)
         self._notify("snapshot", {"entrance": target, "bytes": len(stdout)})
-        return True
 
     async def async_record_clip(self, seconds: int | None = None, *, target: str | None = None) -> str | None:
         """Record a clip from the relay and return its path."""
-        target = self._capture_target(target, "clip")
-        url = self.stream_url("127.0.0.1", target) if target is not None else None
-        if url is None:
+        try:
+            target, url = await self._dial(target)
+        except ViperError as err:
+            _LOGGER.error("could not record a clip: %s", err)
             return None
         duration = seconds or self.record_seconds
         directory = Path(self.record_path)

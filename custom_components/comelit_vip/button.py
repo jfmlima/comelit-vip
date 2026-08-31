@@ -66,5 +66,7 @@ class ComelitVipSnapshotButton(ComelitVipEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         """Press the button."""
-        if not await self.hub.async_capture_snapshot(self.address):
-            raise HomeAssistantError(f"could not take a picture from the entrance panel at {self.address}")
+        try:
+            await self.hub.async_capture_snapshot(self.address)
+        except ViperError as err:
+            raise HomeAssistantError(f"could not take a picture from the entrance panel at {self.address}: {err}") from err
