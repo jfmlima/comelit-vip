@@ -31,6 +31,7 @@ from .const import (
 )
 from .viper import DeviceInfo, PanelConfig, RingEvent, VideoCall, ViperSession, async_discover
 from .viper.ctp import TAG_ENTRANCE, TAG_FLOOR_CALL
+from .viper.models import Actuator, Door
 from .viper.rtsp import DEFAULT_HOST, EXPOSED_HOST, RtspRelay
 from .viper.session import ViperAuthError, ViperError
 from .viper.tasks import end_task
@@ -446,12 +447,15 @@ class ComelitVipHub:
             _LOGGER.error("could not take a picture of %s after the ring: %s", target, err)
 
     # ------------------------------------------------------------------ actions
-    async def async_open(self, address: str, output_index: int) -> None:
+    async def async_open(self, target: Door | Actuator) -> None:
         """Fire a door release or an actuator."""
         if not self.available:
             raise ViperError("not connected to the intercom")
         try:
-            await self.session.open_door(address, output_index)
+            if isinstance(target, Actuator):
+                await self.session.open_actuator(target.address, target.module_index, target.output_index)
+            else:
+                await self.session.open_door(target.address, target.output_index)
         except ValueError as err:
             raise ViperError(str(err)) from err
 

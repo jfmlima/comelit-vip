@@ -47,7 +47,7 @@ class ComelitVipOpenButton(ComelitVipEntity, ButtonEntity):
     async def async_press(self) -> None:
         """Press the button."""
         try:
-            await self.hub.async_open(self._target.address, self._target.output_index)
+            await self.hub.async_open(self._target)
         except ViperError as err:
             raise HomeAssistantError(f"could not open {self._target.name}: {err}") from err
 

@@ -29,6 +29,7 @@ OP_CAPABILITIES = 0x0003
 OP_SETUP_ACK = 0x000C
 OP_RELEASE = 0x000E  # ends a connection, carries a cause byte
 OP_MEDIA_REQUEST = 0x0011
+OP_OPEN_ACTUATOR = 0x0020
 OP_OPEN_DOOR = 0x002D
 OP_REGISTER = 0x0040
 OP_REGISTER_RESPONSE = 0x0041  # the panel repeats this as a renewal

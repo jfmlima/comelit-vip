@@ -123,6 +123,13 @@ async def test_open_door(session, panel):
     assert panel.opened == [(ENTRANCE, 1)]
 
 
+async def test_open_actuator(session, panel):
+    await session.open_actuator("00000102", 255, 1)
+
+    assert panel.fired == [("00000102", 255, 1)]
+    assert panel.opened == []
+
+
 async def test_drop_reported(session, panel):
     lost: list[Exception | None] = []
     session.on_disconnect = lost.append
