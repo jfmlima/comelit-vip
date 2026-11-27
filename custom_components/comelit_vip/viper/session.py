@@ -24,6 +24,7 @@ from .ctp import (
     FLAG_FIN,
     FLAG_SYN,
     OP_INVITE,
+    OP_OPEN_ACTUATOR,
     OP_OPEN_DOOR,
     OP_REGISTER,
     OP_REGISTER_RESPONSE,
@@ -703,11 +704,22 @@ class ViperSession:
         """Open ``relay`` on ``target``; return the release cause, 0 on success."""
         if not 0 <= relay <= 0xFF:
             raise ValueError("relay must fit in one byte")
+        body = struct.pack(">H", OP_OPEN_DOOR) + encode_logaddr(target) + bytes((relay,))
+        return await self._fire(target, body, timeout)
+
+    async def open_actuator(self, target: str, module: int, output: int = 1, *, timeout: float = CTP_TIMEOUT) -> int:
+        """Fire ``output`` of ``module`` on the actuator at ``target``; return the release cause, 0 on success."""
+        if not 0 <= module <= 0xFF or not 0 <= output <= 0xFF:
+            raise ValueError("module and output must each fit in one byte")
+        body = struct.pack(">HBB", OP_OPEN_ACTUATOR, module, output)
+        return await self._fire(target, body, timeout)
+
+    async def _fire(self, target: str, body: bytes, timeout: float) -> int:
+        """Send one command on a connection of its own and wait for the release."""
         if self._ctpp_handle is None:
             raise ViperError("CTPP channel is not open")
         conn = self._new_connection(destination=target)
         try:
-            body = struct.pack(">H", OP_OPEN_DOOR) + encode_logaddr(target) + bytes((relay,))
             await conn.send(body, FLAG_SYN)
             release = await conn.wait(opcode=OP_RELEASE, timeout=timeout)
             await conn.fin()

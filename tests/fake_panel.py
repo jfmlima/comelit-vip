@@ -17,6 +17,7 @@ from custom_components.comelit_vip.viper.ctp import (
     OP_CAPABILITIES,
     OP_INVITE,
     OP_MEDIA_REQUEST,
+    OP_OPEN_ACTUATOR,
     OP_OPEN_DOOR,
     OP_REGISTER,
     OP_REGISTER_RESPONSE,
@@ -88,6 +89,7 @@ class FakePanel:
         self.client_acked: list[int] = []
         self.rtpc_handles: list[int] = []
         self.opened: list[tuple[str, int]] = []
+        self.fired: list[tuple[str, int, int]] = []
         self.connections = 0
         self.answer_registration = True
         self.answer_server_info = True
@@ -283,8 +285,11 @@ class FakePanel:
         if packet.opcode == OP_RELEASE:
             self.releases += 1
             return
-        if packet.opcode == OP_OPEN_DOOR:
-            self.opened.append((packet.destination, packet.body[-1]))
+        if packet.opcode in (OP_OPEN_DOOR, OP_OPEN_ACTUATOR):
+            if packet.opcode == OP_OPEN_ACTUATOR:
+                self.fired.append((packet.destination, packet.body[2], packet.body[3]))
+            else:
+                self.opened.append((packet.destination, packet.body[-1]))
             self.door_connection = peer_connection_id(packet.connection)
             if not self.answer_door:
                 return

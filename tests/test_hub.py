@@ -9,6 +9,7 @@ from fake_panel import ENTRANCE, FakePanel, until
 
 from custom_components.comelit_vip.const import CONNECTION_MAX_AGE, DEFAULT_RTSP_PORT
 from custom_components.comelit_vip.hub import ComelitVipHub
+from custom_components.comelit_vip.viper.models import Actuator, Door
 from custom_components.comelit_vip.viper.rtsp import DEFAULT_HOST, EXPOSED_HOST
 from custom_components.comelit_vip.viper.session import ViperAuthError, ViperError, ViperRefusedError
 
@@ -32,7 +33,7 @@ async def panel(socket_enabled):
 # ------------------------------------------------------------ what is offered
 async def test_open_requires_link(hub):
     with pytest.raises(ViperError, match="not connected"):
-        await hub.async_open(ENTRANCE, 1)
+        await hub.async_open(Door(0, "Gate", ENTRANCE, 1))
 
 
 def test_stream_url_loopback_unless_exposed(hub):
@@ -359,7 +360,20 @@ async def test_open_value_error_becomes_viper_error(hub, monkeypatch):
 
     monkeypatch.setattr(hub.session, "open_door", _open)
     with pytest.raises(ViperError, match="one byte"):
-        await hub.async_open(ENTRANCE, 300)
+        await hub.async_open(Door(0, "Gate", ENTRANCE, 300))
+
+
+async def test_actuator_takes_its_own_command(hub, monkeypatch):
+    monkeypatch.setattr(ComelitVipHub, "available", property(lambda self: True))
+    sent = []
+
+    async def _fire(address, module, output):
+        sent.append((address, module, output))
+
+    monkeypatch.setattr(hub.session, "open_actuator", _fire)
+    await hub.async_open(Actuator(0, "Switchboard", "00000102", 255, 1))
+
+    assert sent == [("00000102", 255, 1)]
 
 
 async def test_floor_call_ending_does_not_release_a_visitors_capture(hass, panel, monkeypatch):
